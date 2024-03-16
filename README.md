@@ -5,6 +5,13 @@ If soil moisture reading on both sensors is low, and water sensor reading didn't
 After pumping, another automatic watering will not occure for the next REST_PERIOD ms, to ensure water has enough time to disperse across soil.
 You can always manually pump water by pressing a button.
 
+
+![IMG_20240313_152102](https://github.com/jmamej/Plant-Watering-Station/assets/57408600/7ce0995a-2001-4853-848e-38298a0e2bd1)
+
+![IMG_20240313_151947](https://github.com/jmamej/Plant-Watering-Station/assets/57408600/36e5dced-fadf-4af7-8240-52c09af494ff)
+
+
+
 ## List of components
 
 - ESP32 dev board
