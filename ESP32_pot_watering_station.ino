@@ -41,10 +41,12 @@ SSD1306Wire display(0x3c, SDA, SCL);
 #define BUTTON_PIN 25
 #define ERROR_LED 4
 
-#define WATER_LEVEL_THRESHOLD 700
-#define MOISTURE_THRESHOLD 700
-#define PUMP_DURATION 5000  // 5 seconds watering
-#define REST_PERIOD 120000  // 2 minutes timeout
+#define WATER_LEVEL_THRESHOLD 400
+#define MOISTURE_MIN_THRESHOLD 700
+#define MOISTURE_MAX_THRESHOLD 2000
+#define MOISTURE_MAX_INCONSISTENCY 700
+#define PUMP_DURATION 3000  // 3 seconds watering
+#define REST_PERIOD 60000  // 1 minutes timeout
 
 unsigned long screen_timeout, current_millis, previous_millis = 0;
 bool pump_running = false;
@@ -86,7 +88,6 @@ void setup(){
 
 void loop(){
   current_millis = millis();
-  error ? digitalWrite(ERROR_LED, HIGH) : digitalWrite(ERROR_LED, LOW);
   resolvePump();
   updateScreen();
 }
@@ -103,8 +104,10 @@ void loop(){
 void resolvePump()
 {
   int button_state = digitalRead(BUTTON_PIN);
+  // Check sensors
+  sensorsRead();
   // Check if button is pressed
-  if (button_state == HIGH) {
+  if (button_state == HIGH && water_level > WATER_LEVEL_THRESHOLD) {
     digitalWrite(PUMP_PIN, HIGH);  // Turn on pump
     previous_millis = current_millis; // Update previousMillis when button is pressed
     manual_pump = true;
@@ -116,31 +119,22 @@ void resolvePump()
     manual_pump = false;
   }
 
-  // Check if it's time to run the pump again
-  if (pump_running && current_millis > previous_millis + PUMP_DURATION){
+  // Check if it's time to stop the pump
+  if (water_level < WATER_LEVEL_THRESHOLD || pump_running && current_millis > previous_millis + PUMP_DURATION){
     digitalWrite(PUMP_PIN, LOW);  // Turn off pump if it was running for the duration (PUMP_DURATION)
     pump_running = false;
   }
   
-  // Check if it's time to check assumptions and run the pump
+  // Check if it's time to run the pump
   if (!pump_running && current_millis > previous_millis + REST_PERIOD){
-    sensorsRead();
-
-    Serial.print(water_level);
-    Serial.print("\t");
-    Serial.print(moisture1);
-    Serial.print("\t");
-    Serial.print(moisture2);
-    Serial.println();
 
     // Check if all conditions are met
-    if (water_level > WATER_LEVEL_THRESHOLD && moisture1 < MOISTURE_THRESHOLD && moisture2 < MOISTURE_THRESHOLD){
+    if (water_level > WATER_LEVEL_THRESHOLD && moisture1 < MOISTURE_MIN_THRESHOLD && moisture2 < MOISTURE_MIN_THRESHOLD){
       digitalWrite(PUMP_PIN, HIGH);  // Turn on pump
       pump_running = true;
       previous_millis = current_millis;
     }
   }
-  last_button_state = button_state;
 }
 
 // Calculate and return average of 8 readings (low ADC accuracy)
@@ -184,18 +178,15 @@ void checkErrors()
 {
   if (water_level < WATER_LEVEL_THRESHOLD) {
     error_string = "Low water level";
-    screen_timeout = 0;
     error = true;
-  } else if (moisture1 > 2000 || moisture2 > 2000) {
+  } else if (moisture1 > MOISTURE_MAX_THRESHOLD || moisture2 > MOISTURE_MAX_THRESHOLD) {
     error_string = "High moisture read";
-    screen_timeout = 0;
     error = true;
-  } else if (abs(moisture1 - moisture2) > 500) {
+  } else if (abs(moisture1 - moisture2) > MOISTURE_MAX_INCONSISTENCY) {
     error_string = "Inconsistent moisture";
-    screen_timeout = 0;
     error = true;
   } else  {
-    error_string = "s1: " + String(moisture1) + " s2: " + String(moisture2);
+    error_string = "t: " + String(checkTemperature(), 1) + " °C h: " + String(checkHumidity(), 0) + " %";
     error = false;
   }
 }
@@ -209,25 +200,22 @@ void setScreenHeader()
 // Set screen body only
 void setScreenBody()
 {
-  String temp_string;
-  temp_string = String(checkTemperature(), 1);
-  display.drawString(0, 16, "Temp: " + temp_string + " °C");
-  temp_string = String(checkHumidity(), 0);
-  display.drawString(0, 32, "Hum:  " + temp_string + " %");
-  temp_string = String(checkHeatIndex(), 1);
-  display.drawString(0, 48, "Index: " + temp_string + " °C");
+  display.drawString(0, 16, "W: " + String(water_level));
+  display.drawString(0, 32, "S1:  " + String(moisture1));
+  display.drawString(0, 48, "S2: " + String(moisture2));
 }
 
 // Clear, update buffer and print to screen
 void updateScreen()
 {
   checkErrors();
+  error ? digitalWrite(ERROR_LED, HIGH) : digitalWrite(ERROR_LED, LOW);
   if(current_millis > screen_timeout)
   {
     display.clear();
     setScreenHeader();
     setScreenBody();
     display.display();
-    screen_timeout = current_millis + 1000;
+    screen_timeout = current_millis + 500;
   }
 }
