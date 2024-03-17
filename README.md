@@ -1,14 +1,20 @@
-# Description:
-This is a code for plant soil watering station that works autonomously as well as manually based on ESP32 dev board.
+# Plant watering station
+
+### Description
+Project of plant watering station that works autonomously as well as manually, based on ESP32 dev board.
 When turned on soil moisture sensors keep track of ammount of water in plant pot and water sensor keeps track of ammount of water in water container.
 If soil moisture reading on both sensors is low, and water sensor reading didn't cross minimum value, pump will turn on for PUMP_DURATION ms.
 After pumping, another automatic watering will not occure for the next REST_PERIOD ms, to ensure water has enough time to disperse across soil.
 You can always manually pump water by pressing a button.
 
 
-![IMG_20240313_152102](https://github.com/jmamej/Plant-Watering-Station/assets/57408600/7ce0995a-2001-4853-848e-38298a0e2bd1)
+![IMG_20240317_135310](https://github.com/jmamej/Plant-Watering-Station/assets/57408600/386b5bdf-b5bf-4546-9411-abaf65300d42)
 
-![IMG_20240313_151947](https://github.com/jmamej/Plant-Watering-Station/assets/57408600/36e5dced-fadf-4af7-8240-52c09af494ff)
+
+| Automatic watering    | Manual watering |
+| --------------------------------------------- | ---------------------------------------------  |
+| <img width="900" src="https://github.com/jmamej/Plant-Watering-Station/assets/57408600/ae927b15-a09f-4364-a02a-3a1ec77e89a8.gif">  | <img width="900" src="https://github.com/jmamej/Plant-Watering-Station/assets/57408600/375c5872-50bf-4d9b-89f2-866255500b19.gif">    |
+
 
 
 
@@ -16,7 +22,9 @@ You can always manually pump water by pressing a button.
 
 - ESP32 dev board
 
-- 5 V step-up voltage regulator
+- 18650 Li-Ion with BMS
+
+- 5 V step-up voltage regulator (optional)
 
 - 5 V water pump (with transparent water hose)
 
@@ -30,20 +38,22 @@ You can always manually pump water by pressing a button.
 
 - DTH11 temperature/ humidity sensor
 
-- 18650 Li-Ion with BMS
 
 ![image](https://github.com/jmamej/Plant-Watering-Station/assets/57408600/e75ad2e3-2f3d-4d10-b3a3-d482caa0178e)
+
+*list of components*
 
 
 ## Cricuit schematics
 
 ![image](https://github.com/jmamej/Plant-Watering-Station/assets/57408600/f8ca484a-2b21-4ae6-bb3d-7d026dfb0d8e)
 
+*circuit schematics made with EasyEDA*
 
 
 # Configuration Settings:
 
-- WATER_LEVEL_THRESHOLD 400 - wery dry, 2000 - wet
+- WATER_LEVEL_THRESHOLD 400 - very dry, 2000 - wet
 
 - MOISTURE_THRESHOLD 700 - almost empty, 2000 full
 
