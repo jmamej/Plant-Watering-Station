@@ -13,7 +13,7 @@ You can always manually pump water by pressing a button.
 
 | Automatic watering    | Manual watering |
 | --------------------------------------------- | ---------------------------------------------  |
-| <img width="900" src="https://github.com/jmamej/Plant-Watering-Station/assets/57408600/ae927b15-a09f-4364-a02a-3a1ec77e89a8.gif">  | <img width="900" src="https://github.com/jmamej/Plant-Watering-Station/assets/57408600/375c5872-50bf-4d9b-89f2-866255500b19.gif">    |
+| <img width="800" src="https://github.com/jmamej/Plant-Watering-Station/assets/57408600/ae927b15-a09f-4364-a02a-3a1ec77e89a8.gif">  | <img width="800" src="https://github.com/jmamej/Plant-Watering-Station/assets/57408600/375c5872-50bf-4d9b-89f2-866255500b19.gif">    |
 
 
 
