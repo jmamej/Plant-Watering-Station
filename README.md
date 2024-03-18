@@ -51,11 +51,28 @@ You can always manually pump water by pressing a button.
 *circuit schematics made with EasyEDA*
 
 
+# Updates
+
+### Changed water level sensor
+
+Reason: poor performance - analog readings drastically changed over short period of time
+
+analogRead(water_level); // reading: ~1800 - fully submerged sensor
+
+analogRead(water_level); // reading: ~200 - fully submerged sensor for 48 hours
+
+Fix:
+
+| DIY water level sensor  |  pull down resistor for stablility  | Schematic |
+| ----------------------- | ----------------------------------  | --------  |
+| <img width="600" src="https://github.com/jmamej/Plant-Watering-Station/assets/57408600/489084c1-19bd-4fa7-a6a7-d5d57bbd3a73.png"> | <img width="650" src="https://github.com/jmamej/Plant-Watering-Station/assets/57408600/3ddad15c-bf0b-4a00-83f2-fc946b1641e4.png"> | <img width="1000" src="https://github.com/jmamej/Plant-Watering-Station/assets/57408600/e6bb2cf4-bc75-459d-aba8-f3da531cdf22.png"> |
+
+
 # Configuration Settings:
 
-- WATER_LEVEL_THRESHOLD 400 - very dry, 2000 - wet
+- WATER_LEVEL_THRESHOLD 700 - almost empty, 2000 full (readings highly vary depending on submerge time of the sensor)
 
-- MOISTURE_THRESHOLD 700 - almost empty, 2000 full
+- MOISTURE_THRESHOLD 400 - very dry, 2000 - wet
 
 - PUMP_DURATION depends on watering hose length
 
