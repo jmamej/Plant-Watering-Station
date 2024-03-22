@@ -22,9 +22,9 @@ You can always manually pump water by pressing a button.
 
 - ESP32 dev board
 
-- 18650 Li-Ion with BMS
+- 18650 Li-Ion with BMS (2x)
 
-- 5 V step-up voltage regulator (optional)
+- 5 V step-up/ step-down voltage regulator (optional)
 
 - 5 V water pump (with transparent water hose)
 
@@ -46,26 +46,40 @@ You can always manually pump water by pressing a button.
 
 ## Cricuit schematics
 
-![image](https://github.com/jmamej/Plant-Watering-Station/assets/57408600/f8ca484a-2b21-4ae6-bb3d-7d026dfb0d8e)
+![image](https://github.com/jmamej/Plant-Watering-Station/assets/57408600/68fe4e5d-1de6-4ba1-b5fe-b76ea5e8fa47)
+
 
 *circuit schematics made with EasyEDA*
 
 
-# Updates
+# Changes during testing
 
-### Changed water level sensor
+### Poor sensor performance when powered continuously
 
-Reason: poor performance - analog readings drastically changed over short period of time
+Fix: Connection VCC pins of all 3 sensors to GPIO's of ESP32 for powering. Max GPIO output current ~ 20 mA. Sensors current consumption < 20 mA.
+Sensors are being powered up, analog reading is being performed, sensors are being powered down. GPIO's are being used as powwer supplies for short bursts.
 
-analogRead(water_level); // reading: ~1800 - fully submerged sensor
+```
+void sensorsPower(int p1, int p2, int p3)
+{
+  digitalWrite(WATER_SENSOR_POWER_PIN, p1);
+  digitalWrite(MOISTURE_1_POWER_PIN, p2);
+  digitalWrite(MOISTURE_2_POWER_PIN, p3);
+}
 
-analogRead(water_level); // reading: ~200 - fully submerged sensor for 48 hours
+void sensorsRead()
+{
+  sensorsPower(1, 1, 1);
+  water_level = readAnalogAverage(WATER_LEVEL_PIN);
+  moisture1 = readAnalogAverage(MOISTURE_SENSOR_1_PIN);
+  moisture2 = readAnalogAverage(MOISTURE_SENSOR_2_PIN);
+  sensorsPower(0, 0, 0);
+}
+```
 
-Fix:
+Result: Readings satisfactionary
 
-| DIY water level sensor  |  pull down resistor for stablility  | Schematic |
-| ----------------------- | ----------------------------------  | --------  |
-| <img width="600" src="https://github.com/jmamej/Plant-Watering-Station/assets/57408600/489084c1-19bd-4fa7-a6a7-d5d57bbd3a73.png"> | <img width="650" src="https://github.com/jmamej/Plant-Watering-Station/assets/57408600/3ddad15c-bf0b-4a00-83f2-fc946b1641e4.png"> | <img width="1000" src="https://github.com/jmamej/Plant-Watering-Station/assets/57408600/e6bb2cf4-bc75-459d-aba8-f3da531cdf22.png"> |
+
 
 
 # Configuration Settings:
