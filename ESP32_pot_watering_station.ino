@@ -7,8 +7,8 @@ After pumping, another automatic watering will not occure for the next REST_PERI
 You can always manually pump water by pressing a button.
 
 Configuration Settings:
-WATER_LEVEL_THRESHOLD 400 - wery dry, 2000 - wet
-MOISTURE_THRESHOLD 700 - almost empty, 2000 full
+WATER_LEVEL_THRESHOLD 700 - almost empty, 2000 full
+MOISTURE_THRESHOLD  400 - wery dry, 2000 - wet
 PUMP_DURATION depends on watering hose length
 REST_PERIOD 1 min - short rest period
 
@@ -38,21 +38,25 @@ SSD1306Wire display(0x3c, SDA, SCL);
 #define MOISTURE_SENSOR_1_PIN 14
 #define MOISTURE_SENSOR_2_PIN 34
 #define PUMP_PIN 2
-#define BUTTON_PIN 25
+#define BUTTON_PIN 19 //15
 #define ERROR_LED 4
+#define WATER_SENSOR_POWER_PIN  5
+#define MOISTURE_1_POWER_PIN  27
+#define MOISTURE_2_POWER_PIN  26
 
 #define WATER_LEVEL_THRESHOLD 400
 #define MOISTURE_MIN_THRESHOLD 700
 #define MOISTURE_MAX_THRESHOLD 2000
 #define MOISTURE_MAX_INCONSISTENCY 700
-#define PUMP_DURATION 3000  // 3 seconds watering
+#define PUMP_DURATION 2000  // 2 seconds watering
 #define REST_PERIOD 60000  // 1 minutes timeout
+#define SENSOR_READ_TIMER 10000 // 10 s
+#define MANUAL_WATER_READ_TIMER 100 // 100 ms
 
-unsigned long screen_timeout, current_millis, previous_millis = 0;
+unsigned long sensors_read_timeout, screen_timeout, current_millis, previous_millis = 0;
 bool pump_running = false;
-bool button_state = false;
+int button_state = 0;
 bool manual_pump = false;
-bool last_button_state = false;
 bool error = false;
 
 int water_level, moisture1, moisture2;
@@ -62,6 +66,8 @@ String error_string;
 // function declaration
 void resolvePump();
 int readAnalogAverage(int pin);
+void sensorsPower(int p1, int p2, int p3);
+void waterSensorRead();
 void sensorsRead();
 float checkTemperature();
 float checkHumidity();
@@ -82,12 +88,24 @@ void setup(){
   pinMode(MOISTURE_SENSOR_2_PIN, INPUT);
   pinMode(PUMP_PIN, OUTPUT);
   pinMode(ERROR_LED, OUTPUT);
-  pinMode(BUTTON_PIN, INPUT_PULLDOWN); // Set button pin as input with internal pull-down resistor  (INPUT_PULLDOWN)
+  pinMode(BUTTON_PIN, INPUT_PULLUP); // Set button pin as input with internal pull-down resistor  (INPUT_PULLDOWN)
+  pinMode(WATER_SENSOR_POWER_PIN, OUTPUT);
+  pinMode(MOISTURE_1_POWER_PIN, OUTPUT);
+  pinMode(MOISTURE_2_POWER_PIN, OUTPUT);
   sensorsRead();
 }
 
 void loop(){
   current_millis = millis();
+  button_state = digitalRead(BUTTON_PIN);
+
+  // Read sensors every SENSOR_READ_TIMER ms when manual pumping button is released
+  if(current_millis > sensors_read_timeout && button_state == HIGH)
+  {
+    sensorsRead();
+    sensors_read_timeout = current_millis + SENSOR_READ_TIMER;
+  }
+
   resolvePump();
   updateScreen();
 }
@@ -103,18 +121,27 @@ void loop(){
 */
 void resolvePump()
 {
-  int button_state = digitalRead(BUTTON_PIN);
-  // Check sensors
-  sensorsRead();
   // Check if button is pressed
-  if (button_state == HIGH && water_level > WATER_LEVEL_THRESHOLD) {
-    digitalWrite(PUMP_PIN, HIGH);  // Turn on pump
-    previous_millis = current_millis; // Update previousMillis when button is pressed
-    manual_pump = true;
+  if (button_state == LOW) {
+
+    if(manual_pump == false)  sensors_read_timeout = 0; // allow's reading of water sensor immediately after button press without waiting for sensors_read_timeout
+
+    // Read water sensor every 100 ms (prevents pumping air and damaging pump)
+    if(current_millis > sensors_read_timeout)
+    {
+      waterSensorRead();
+      sensors_read_timeout = current_millis + MANUAL_WATER_READ_TIMER;
+    }
+
+    if(water_level > WATER_LEVEL_THRESHOLD) {
+      digitalWrite(PUMP_PIN, HIGH);  // Turn on pump
+      previous_millis = current_millis; // Update previousMillis when button is pressed
+      manual_pump = true;
+    }
   }
   
   // Check if button is released and manual pump is on
-  if (button_state == LOW && manual_pump) {
+  if (button_state == HIGH && manual_pump) {
     digitalWrite(PUMP_PIN, LOW); // Turn off pump only if manual pump was on
     manual_pump = false;
   }
@@ -147,12 +174,30 @@ int readAnalogAverage(int pin)
   return result / 8;
 }
 
+// Turn sensors on/ off (power 1 - on, 0 - off)
+void sensorsPower(int p1, int p2, int p3)
+{
+  digitalWrite(WATER_SENSOR_POWER_PIN, p1);
+  digitalWrite(MOISTURE_1_POWER_PIN, p2);
+  digitalWrite(MOISTURE_2_POWER_PIN, p3);
+}
+
+// Read water level sensors
+void waterSensorRead()
+{
+  sensorsPower(1, 0, 0);
+  water_level = readAnalogAverage(WATER_LEVEL_PIN);
+  sensorsPower(0, 0, 0);
+}
+
 // Read soil moisture and water level sensors
 void sensorsRead()
 {
+  sensorsPower(1, 1, 1);
   water_level = readAnalogAverage(WATER_LEVEL_PIN);
   moisture1 = readAnalogAverage(MOISTURE_SENSOR_1_PIN);
   moisture2 = readAnalogAverage(MOISTURE_SENSOR_2_PIN);
+  sensorsPower(0, 0, 0);
 }
 
 // Read temperature from DHT
