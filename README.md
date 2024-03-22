@@ -12,7 +12,7 @@ You can always manually pump water by pressing a button.
 
 
 | Automatic watering    | Manual watering |
-| --------------------------------------------- | ---------------------------------------------  |
+| --------------------- | --------------  |
 | <img width="800" src="https://github.com/jmamej/Plant-Watering-Station/assets/57408600/ae927b15-a09f-4364-a02a-3a1ec77e89a8.gif">  | <img width="800" src="https://github.com/jmamej/Plant-Watering-Station/assets/57408600/375c5872-50bf-4d9b-89f2-866255500b19.gif">    |
 
 
@@ -57,7 +57,7 @@ You can always manually pump water by pressing a button.
 ### Poor sensor performance when powered continuously
 
 Fix: Connection VCC pins of all 3 sensors to GPIO's of ESP32 for powering. Max GPIO output current ~ 20 mA. Sensors current consumption < 20 mA.
-Sensors are being powered up, analog reading is being performed, sensors are being powered down. GPIO's are being used as powwer supplies for short bursts.
+Sensors are being powered up, analog reading is being performed, sensors are being powered down. GPIO's are being used as power supplies for short bursts.
 
 ```
 void sensorsPower(int p1, int p2, int p3)
@@ -79,7 +79,9 @@ void sensorsRead()
 
 Result: Readings satisfactionary
 
-
+| Front    | Back |
+| --------------------- | --------------  |
+| <img width="400" src="https://github.com/jmamej/Plant-Watering-Station/assets/57408600/113391b4-f441-4478-ac92-1a8e960f9b6c.png">  | <img width="400" src="https://github.com/jmamej/Plant-Watering-Station/assets/57408600/df2d4c90-8320-45e3-9343-cb2da9760cb4.png">    |
 
 
 # Configuration Settings:
