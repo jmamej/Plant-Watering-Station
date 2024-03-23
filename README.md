@@ -8,7 +8,8 @@ After pumping, another automatic watering will not occure for the next REST_PERI
 You can always manually pump water by pressing a button.
 
 
-![IMG_20240317_135310](https://github.com/jmamej/Plant-Watering-Station/assets/57408600/386b5bdf-b5bf-4546-9411-abaf65300d42)
+![IMG_20240322_150134](https://github.com/jmamej/Plant-Watering-Station/assets/57408600/d6268ea5-380d-4d0e-9479-58da871564b0)
+
 
 
 | Automatic watering    | Manual watering |
