@@ -2,10 +2,8 @@
 
 ### Description
 Project of plant watering station that works autonomously as well as manually, based on ESP32 dev board.
-When turned on soil moisture sensors keep track of ammount of water in plant pot and water sensor keeps track of ammount of water in water container.
-If soil moisture reading on both sensors is low, and water sensor reading didn't cross minimum value, pump will turn on for PUMP_DURATION ms.
-After pumping, another automatic watering will not occure for the next REST_PERIOD ms, to ensure water has enough time to disperse across soil.
-You can always manually pump water by pressing a button.
+Sleep mode intorduced to reduce power consumption. When turned on soil moisture sensors keep track of ammount of water in plant pot and water sensor keeps track of ammount of water in water container.
+If soil moisture reading on both sensors is low, and water sensor reading didn't cross minimum value, pump will turn on for PUMP_DURATION ms (manual watering is also available), after which esp32 goes to deep sleep. Wake up is initiated either with timer or button press.
 
 
 ![IMG_20240322_150134](https://github.com/jmamej/Plant-Watering-Station/assets/57408600/d6268ea5-380d-4d0e-9479-58da871564b0)
@@ -23,21 +21,21 @@ You can always manually pump water by pressing a button.
 
 - ESP32 dev board
 
-- 18650 Li-Ion with BMS (2x)
+- 18650 Li-Ion with BMS
 
-- 5 V step-up/ step-down voltage regulator (optional)
+- 5 V step-up voltage regulator
 
 - 5 V water pump (with transparent water hose)
 
-- Soil moisture sensor
+- 2x Soil moisture sensor
 
 - Water level sensor
 
-- N-MOSFET/ PWM controller/ relay (for controlling water pump)
+- 2x N-MOSFET/ PWM controller/ relay (for controlling water pump)
 
 - SSD1306 OLED screen
 
-- DTH11 temperature/ humidity sensor
+- AHT10 temperature/ humidity sensor
 
 
 ![image](https://github.com/jmamej/Plant-Watering-Station/assets/57408600/e75ad2e3-2f3d-4d10-b3a3-d482caa0178e)
@@ -47,7 +45,7 @@ You can always manually pump water by pressing a button.
 
 ## Cricuit schematics
 
-![image](https://github.com/jmamej/Plant-Watering-Station/assets/57408600/68fe4e5d-1de6-4ba1-b5fe-b76ea5e8fa47)
+![image](https://github.com/jmamej/Plant-Watering-Station/assets/57408600/bc9cbf92-9858-4f9d-af2c-7ba627c32c02)
 
 
 *circuit schematics made with EasyEDA*
@@ -55,45 +53,25 @@ You can always manually pump water by pressing a button.
 
 # Changes during testing
 
-### Poor sensor performance when powered continuously
+Added second MOSFET for powering sensors and OLED screen. Pin 18 pulled HIGH turns on MOSFET based switch, enabling current flow to sensors.
 
-Fix: Connection VCC pins of all 3 sensors to GPIO's of ESP32 for powering. Max GPIO output current ~ 20 mA. Sensors current consumption < 20 mA.
-Sensors are being powered up, analog reading is being performed, sensors are being powered down. GPIO's are being used as power supplies for short bursts.
+Result: Lower current during sleep mode
 
-```
-void sensorsPower(int p1, int p2, int p3)
-{
-  digitalWrite(WATER_SENSOR_POWER_PIN, p1);
-  digitalWrite(MOISTURE_1_POWER_PIN, p2);
-  digitalWrite(MOISTURE_2_POWER_PIN, p3);
-}
+- ON - 88 mA
+- SLEEP - 16 mA
 
-void sensorsRead()
-{
-  sensorsPower(1, 1, 1);
-  water_level = readAnalogAverage(WATER_LEVEL_PIN);
-  moisture1 = readAnalogAverage(MOISTURE_SENSOR_1_PIN);
-  moisture2 = readAnalogAverage(MOISTURE_SENSOR_2_PIN);
-  sensorsPower(0, 0, 0);
-}
-```
-
-Result: Readings satisfactionary
-
-| Front    | Back |
+| Running    | Deep Sleep |
 | --------------------- | --------------  |
-| <img width="400" src="https://github.com/jmamej/Plant-Watering-Station/assets/57408600/113391b4-f441-4478-ac92-1a8e960f9b6c.png">  | <img width="400" src="https://github.com/jmamej/Plant-Watering-Station/assets/57408600/df2d4c90-8320-45e3-9343-cb2da9760cb4.png">    |
+| <img width="400" src="https://github.com/jmamej/Plant-Watering-Station/assets/57408600/18095739-64d6-4d58-9485-415a0b317a65.png">  | <img width="400" src="https://github.com/jmamej/Plant-Watering-Station/assets/57408600/4721bc3c-9656-456c-83ad-b43ab9002c7d.png">    |
 
 
 # Configuration Settings:
 
-- WATER_LEVEL_THRESHOLD 700 - almost empty, 2000 full (readings highly vary depending on submerge time of the sensor)
+- WATER_LEVEL_THRESHOLD 400 - almost empty, 2000 full (readings highly vary depending on submerge time of the sensor)
 
-- MOISTURE_THRESHOLD 400 - very dry, 2000 - wet
+- MOISTURE_THRESHOLD 1000 - very dry, 2800 - wet
 
 - PUMP_DURATION depends on watering hose length
-
-- REST_PERIOD 1 min - short rest period
 
 
 # Comments:
