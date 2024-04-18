@@ -1,16 +1,15 @@
 /*
 Description:
-This is a code for plant soil watering station that works autonomously as well as manually based on ESP32 dev board.
+This is a code for plant soil watering station that works autonomously as well as manually, based on ESP32 dev board. Sleep mode intorduced to reduce power consumption.
 When turned on soil moisture sensors keep track of ammount of water in plant pot and water sensor keeps track of ammount of water in water container.
-If soil moisture reading on both sensors is low, and water sensor reading didn't cross minimum value, pump will turn on for PUMP_DURATION ms.
-After pumping, another automatic watering will not occure for the next REST_PERIOD ms, to ensure water has enough time to disperse across soil.
-You can always manually pump water by pressing a button.
+If soil moisture reading on both sensors is low, and water sensor reading didn't cross minimum value, pump will turn on for PUMP_DURATION ms (manual watering is also available), after which esp32 goes to deep sleep.
+Wake up is initiated either with timer or button press.
+
 
 Configuration Settings:
-WATER_LEVEL_THRESHOLD 700 - almost empty, 2000 full
-MOISTURE_THRESHOLD  400 - wery dry, 2000 - wet
+WATER_LEVEL_THRESHOLD 400 - almost empty, 2000 full
+MOISTURE_THRESHOLD  1000 - wery dry, 2000 - wet
 PUMP_DURATION depends on watering hose length
-REST_PERIOD 1 min - short rest period
 
 Comments:
 Efficiency of the entire project is dependant on pump/ watering hose assembly.
@@ -20,17 +19,18 @@ It is not advised to connect pump directly to IO pin. Use N-MOSFET (logic level 
 
 Author: JMamej
 
-Date: 11.03.2024
+Date: 18.04.2024
 
-Version: 0.1
+Version: 0.3
 */
 
-#include "DHT.h"
+#include <driver/rtc_io.h>
+#include <Adafruit_AHT10.h>
 #include "SSD1306Wire.h"
 
-#define DHTPIN 32
-#define DHTTYPE DHT11
-DHT dht(DHTPIN, DHTTYPE);
+Adafruit_AHT10 aht;
+
+sensors_event_t humidity, temp;
 
 SSD1306Wire display(0x3c, SDA, SCL);
 
@@ -38,22 +38,27 @@ SSD1306Wire display(0x3c, SDA, SCL);
 #define MOISTURE_SENSOR_1_PIN 14
 #define MOISTURE_SENSOR_2_PIN 34
 #define PUMP_PIN 2
-#define BUTTON_PIN 19 //15
-#define ERROR_LED 4
-#define WATER_SENSOR_POWER_PIN  5
-#define MOISTURE_1_POWER_PIN  27
-#define MOISTURE_2_POWER_PIN  26
+#define BUTTON_PIN 4
+#define ERROR_LED 19
+#define POWER_3V3_BUSS_PIN  18
 
 #define WATER_LEVEL_THRESHOLD 400
-#define MOISTURE_MIN_THRESHOLD 700
-#define MOISTURE_MAX_THRESHOLD 2000
-#define MOISTURE_MAX_INCONSISTENCY 700
+#define MOISTURE_MIN_THRESHOLD 1000
+#define MOISTURE_MAX_THRESHOLD 2800
+#define MOISTURE_MAX_INCONSISTENCY 800
+#define NUM_OF_SENSOR_READS 16
 #define PUMP_DURATION 2000  // 2 seconds watering
-#define REST_PERIOD 60000  // 1 minutes timeout
-#define SENSOR_READ_TIMER 10000 // 10 s
 #define MANUAL_WATER_READ_TIMER 100 // 100 ms
 
-unsigned long sensors_read_timeout, screen_timeout, current_millis, previous_millis = 0;
+
+
+#define SCREEN_ON_SHORT 15000  //30000
+#define SCREEN_ON_LONG  30000 //60000
+
+#define SLEEP_TIME_ERROR      60000000  //300000000
+#define SLEEP_TIME_NO_ERROR   300000000  //3600000000
+
+unsigned long sensors_read_timeout, current_millis, previous_millis = 0;
 bool pump_running = false;
 int button_state = 0;
 bool manual_pump = false;
@@ -61,9 +66,12 @@ bool error = false;
 
 int water_level, moisture1, moisture2;
 
+long long sleep_time, screen_on_time;
+
 String error_string;
 
 // function declaration
+void power_3v3_buss(int on_off);
 void resolvePump();
 int readAnalogAverage(int pin);
 void sensorsPower(int p1, int p2, int p3);
@@ -71,44 +79,73 @@ void waterSensorRead();
 void sensorsRead();
 float checkTemperature();
 float checkHumidity();
-float checkHeatIndex();
 void checkErrors();
 void setScreenHeader();
 void setScreenBody();
 void updateScreen();
+void sleep();
+
 
 void setup(){
   Serial.begin(115200);
-  dht.begin();
-  display.init();
-  display.flipScreenVertically();
-  display.setFont(ArialMT_Plain_16);
+  pinMode(POWER_3V3_BUSS_PIN, OUTPUT);
   pinMode(WATER_LEVEL_PIN, INPUT);
   pinMode(MOISTURE_SENSOR_1_PIN, INPUT);
   pinMode(MOISTURE_SENSOR_2_PIN, INPUT);
   pinMode(PUMP_PIN, OUTPUT);
   pinMode(ERROR_LED, OUTPUT);
   pinMode(BUTTON_PIN, INPUT_PULLUP); // Set button pin as input with internal pull-down resistor  (INPUT_PULLDOWN)
-  pinMode(WATER_SENSOR_POWER_PIN, OUTPUT);
   pinMode(MOISTURE_1_POWER_PIN, OUTPUT);
   pinMode(MOISTURE_2_POWER_PIN, OUTPUT);
+  power_3v3_buss(1);
+  delay(1); //give time for sensors to power up before initializing
+
+  display.init();
+  display.flipScreenVertically();
+  display.setFont(ArialMT_Plain_16);
+
+  display.clear();
+  display.drawString(40, 24, "Hello!");
+  display.display();
+
+  while(! aht.begin() && millis() < 3000)
+  {
+    digitalWrite(ERROR_LED, HIGH);
+    delay(1);
+  }
+
+  digitalWrite(ERROR_LED, LOW);
+
+  rtc_gpio_pullup_en((gpio_num_t)BUTTON_PIN); //enable pullup after CPU is put to deep sleep
+  esp_sleep_enable_ext0_wakeup((gpio_num_t)BUTTON_PIN, LOW);  //enable wakeup with button press
+
   sensorsRead();
+
+  updateScreen();
 }
 
 void loop(){
   current_millis = millis();
   button_state = digitalRead(BUTTON_PIN);
 
-  // Read sensors every SENSOR_READ_TIMER ms when manual pumping button is released
-  if(current_millis > sensors_read_timeout && button_state == HIGH)
-  {
-    sensorsRead();
-    sensors_read_timeout = current_millis + SENSOR_READ_TIMER;
-  }
-
   resolvePump();
-  updateScreen();
+
+  if(current_millis > screen_on_time)
+  {
+    sleep();
+  }
 }
+
+
+/*
+  Power up 3V3 power buss - turn sensors ond screen on
+*/
+
+void power_3v3_buss(int on_off)
+{
+  digitalWrite(POWER_3V3_BUSS_PIN, on_off);
+}
+
 
 /*
 * resolvePump runs pump manualy and automaticaly
@@ -122,9 +159,7 @@ void loop(){
 void resolvePump()
 {
   // Check if button is pressed
-  if (button_state == LOW) {
-
-    if(manual_pump == false)  sensors_read_timeout = 0; // allow's reading of water sensor immediately after button press without waiting for sensors_read_timeout
+  if (button_state == LOW && water_level > WATER_LEVEL_THRESHOLD) {
 
     // Read water sensor every 100 ms (prevents pumping air and damaging pump)
     if(current_millis > sensors_read_timeout)
@@ -133,11 +168,8 @@ void resolvePump()
       sensors_read_timeout = current_millis + MANUAL_WATER_READ_TIMER;
     }
 
-    if(water_level > WATER_LEVEL_THRESHOLD) {
-      digitalWrite(PUMP_PIN, HIGH);  // Turn on pump
-      previous_millis = current_millis; // Update previousMillis when button is pressed
-      manual_pump = true;
-    }
+    digitalWrite(PUMP_PIN, HIGH);  // Turn on pump
+    manual_pump = true;
   }
   
   // Check if button is released and manual pump is on
@@ -152,15 +184,11 @@ void resolvePump()
     pump_running = false;
   }
   
-  // Check if it's time to run the pump
-  if (!pump_running && current_millis > previous_millis + REST_PERIOD){
-
-    // Check if all conditions are met
-    if (water_level > WATER_LEVEL_THRESHOLD && moisture1 < MOISTURE_MIN_THRESHOLD && moisture2 < MOISTURE_MIN_THRESHOLD){
-      digitalWrite(PUMP_PIN, HIGH);  // Turn on pump
-      pump_running = true;
-      previous_millis = current_millis;
-    }
+  // Check if all conditions are met
+  if (water_level > WATER_LEVEL_THRESHOLD && !pump_running && moisture1 < MOISTURE_MIN_THRESHOLD && moisture2 < MOISTURE_MIN_THRESHOLD){
+    digitalWrite(PUMP_PIN, HIGH);  // Turn on pump
+    pump_running = true;
+    previous_millis = current_millis;
   }
 }
 
@@ -168,59 +196,42 @@ void resolvePump()
 int readAnalogAverage(int pin)
 {
   int result = 0;
-  for (int i = 0; i < 8; i++){
+  for (int i = 0; i < NUM_OF_SENSOR_READS; i++){
     result += analogRead(pin);
   }
-  return result / 8;
-}
-
-// Turn sensors on/ off (power 1 - on, 0 - off)
-void sensorsPower(int p1, int p2, int p3)
-{
-  digitalWrite(WATER_SENSOR_POWER_PIN, p1);
-  digitalWrite(MOISTURE_1_POWER_PIN, p2);
-  digitalWrite(MOISTURE_2_POWER_PIN, p3);
+  return result / NUM_OF_SENSOR_READS;
 }
 
 // Read water level sensors
 void waterSensorRead()
 {
-  sensorsPower(1, 0, 0);
   water_level = readAnalogAverage(WATER_LEVEL_PIN);
-  sensorsPower(0, 0, 0);
 }
 
 // Read soil moisture and water level sensors
 void sensorsRead()
 {
-  sensorsPower(1, 1, 1);
   water_level = readAnalogAverage(WATER_LEVEL_PIN);
   moisture1 = readAnalogAverage(MOISTURE_SENSOR_1_PIN);
   moisture2 = readAnalogAverage(MOISTURE_SENSOR_2_PIN);
-  sensorsPower(0, 0, 0);
 }
 
 // Read temperature from DHT
 float checkTemperature()
 {
-  return  dht.readTemperature();
+  return  (int)temp.temperature;
 }
 
 // Read humidity from DHT
 float checkHumidity()
 {
-  return dht.readHumidity();
-}
-
-// Read heat index from DHT
-float checkHeatIndex()
-{
-  return (dht.computeHeatIndex(checkTemperature(), checkHumidity(), false));
+  return  (int)humidity.relative_humidity;
 }
 
 // Check errors
 void checkErrors()
 {
+  screen_on_time = SCREEN_ON_LONG;  //leave screen for 60s if encountered errors
   if (water_level < WATER_LEVEL_THRESHOLD) {
     error_string = "Low water level";
     error = true;
@@ -231,9 +242,12 @@ void checkErrors()
     error_string = "Inconsistent moisture";
     error = true;
   } else  {
+    aht.getEvent(&humidity, &temp); // populate temp and humidity objects with fresh data
     error_string = "t: " + String(checkTemperature(), 1) + " °C h: " + String(checkHumidity(), 0) + " %";
     error = false;
+    screen_on_time = SCREEN_ON_SHORT; //leave screen for 30s if no errors
   }
+  error ? digitalWrite(ERROR_LED, HIGH) : digitalWrite(ERROR_LED, LOW);
 }
 
 // Set screen header only
@@ -254,13 +268,18 @@ void setScreenBody()
 void updateScreen()
 {
   checkErrors();
-  error ? digitalWrite(ERROR_LED, HIGH) : digitalWrite(ERROR_LED, LOW);
-  if(current_millis > screen_timeout)
-  {
-    display.clear();
-    setScreenHeader();
-    setScreenBody();
-    display.display();
-    screen_timeout = current_millis + 500;
-  }
+  display.clear();
+  setScreenHeader();
+  setScreenBody();
+  display.display();
 }
+
+//Reset sensors and initialize sleep;
+void sleep()
+{
+  error ? sleep_time = SLEEP_TIME_ERROR : sleep_time = SLEEP_TIME_NO_ERROR;   //SLEEP_TIME_ERROR, SLEEP_TIME_NO_ERROR
+  display.resetDisplay();
+  power_3v3_buss(0);
+  esp_deep_sleep(sleep_time);
+}
+
