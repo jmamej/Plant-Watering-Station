@@ -31,7 +31,9 @@ If soil moisture reading on both sensors is low, and water sensor reading didn't
 
 - Water level sensor
 
-- 2x N-MOSFET/ PWM controller/ relay (for controlling water pump)
+- N-MOSFET/ PWM controller/ relay (for controlling water pump)
+
+- Power switch with 2 channels (NCP382HD05AAR2G)
 
 - SSD1306 OLED screen
 
@@ -45,24 +47,30 @@ If soil moisture reading on both sensors is low, and water sensor reading didn't
 
 ## Cricuit schematics
 
-![image](https://github.com/jmamej/Plant-Watering-Station/assets/57408600/bc9cbf92-9858-4f9d-af2c-7ba627c32c02)
-
+![image](https://github.com/jmamej/Plant-Watering-Station/assets/57408600/d38cacac-6e01-4486-9f10-dd62814eae1e)
 
 *circuit schematics made with EasyEDA*
 
 
 # Changes during testing
 
-Added second MOSFET for powering sensors and OLED screen. Pin 18 pulled HIGH turns on MOSFET based switch, enabling current flow to sensors.
+Replaced second MOSFET with power switch for powering sensors and OLED screen. Pin 18 pulled HIGH turns on channel 1 (AHT10, OLED) pin 23 pulled HIGH turns on channel 2 (sensors).
 
 Result: Lower current during sleep mode
+
+Previous:
 
 - ON - 88 mA
 - SLEEP - 16 mA
 
+Current:
+
+- ON - 34 mA
+- SLEEP - 16 mA
+
 | Running    | Deep Sleep |
 | --------------------- | --------------  |
-| <img width="400" src="https://github.com/jmamej/Plant-Watering-Station/assets/57408600/18095739-64d6-4d58-9485-415a0b317a65.png">  | <img width="400" src="https://github.com/jmamej/Plant-Watering-Station/assets/57408600/4721bc3c-9656-456c-83ad-b43ab9002c7d.png">    |
+| <img width="400" src="https://github.com/jmamej/Plant-Watering-Station/assets/57408600/7bc92a80-33d8-4d49-b59c-982b57d4e1dd.png">  | <img width="400" src="https://github.com/jmamej/Plant-Watering-Station/assets/57408600/f8f6573b-b8e4-4450-bb93-df8a961559fa.png">    |
 
 
 # Configuration Settings:
@@ -78,5 +86,43 @@ Result: Lower current during sleep mode
 Efficiency of the entire project is dependant on pump/ watering hose assembly.
 Soil sensors deteriorate over time, higher thresholds might be necessary.
 It is not advised to connect pump directly to IO pin. Use N-MOSFET (logic level with low Rds)/ MOSFET driver like DRV8838/ PWM module or relay.
+
+
+# Previous schematics:
+
+1. Base version
+
+![image](https://github.com/jmamej/Plant-Watering-Station/assets/57408600/bbc8947e-5e31-4a38-b4ab-baeabd9ae772)
+
+Problems: 
+-  Very high current draw, due to continous sensor powering and continous CPU work (no deep sleep).
+-  Usage of DHT11 - long power up and reading times.
+
+2. Added sleep mode and fly-back diode
+
+![image](https://github.com/jmamej/Plant-Watering-Station/assets/57408600/56dc8f18-52f6-4bc7-99b9-bd6c31cdd2a3)
+
+Problems:
+- High current draw while awake (>100 mA)
+- High current draw while in deep sleep, due to sensors being continuosly connected to 3,3 V buss. Additionally these sensors work poorly when constantly powered (readings drop significantly)
+
+3. Added second MOSFET to turn sensors off while in deep sleep (current draw reduced to 16 mA)
+
+![image](https://github.com/jmamej/Plant-Watering-Station/assets/57408600/874ac463-1474-4b1a-acff-afdac0b4d1c9)
+
+Problems:
+- High current draw while awake ~ 90 mA. Sensors still unnecesarily powered for the entire duration of CPU awake state.
+- MOSFET lowered voltage from 3,3 V to 2,8-2,9 V causing powering problems.
+
+4. Replaced second MOSFET with 2-channel power switch NCP382HD05AAR2G. Sensors are being powered separately from AHT10 and OLED. This reduced power consumption while on to 34 mA. Sensors are being powered on for fraction of a second:
+
+```
+  power_sensors(1);  //turn sensors on
+  sensorsRead();    //read from sensors
+  power_sensors(0);  //turn sensors off
+```
+
+![image](https://github.com/jmamej/Plant-Watering-Station/assets/57408600/71e3e5c5-e851-417e-8578-e700031aaf35)
+
 
 
