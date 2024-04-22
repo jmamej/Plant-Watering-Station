@@ -19,9 +19,9 @@ It is not advised to connect pump directly to IO pin. Use N-MOSFET (logic level 
 
 Author: JMamej
 
-Date: 18.04.2024
+Date: 22.04.2024
 
-Version: 0.3
+Version: 0.4
 */
 
 #include <driver/rtc_io.h>
@@ -40,7 +40,8 @@ SSD1306Wire display(0x3c, SDA, SCL);
 #define PUMP_PIN 2
 #define BUTTON_PIN 4
 #define ERROR_LED 19
-#define POWER_3V3_BUSS_PIN  18
+#define POWER_PIN_OLED  18
+#define POWER_PIN_SENSORS 23
 
 #define WATER_LEVEL_THRESHOLD 400
 #define MOISTURE_MIN_THRESHOLD 1000
@@ -50,15 +51,13 @@ SSD1306Wire display(0x3c, SDA, SCL);
 #define PUMP_DURATION 2000  // 2 seconds watering
 #define MANUAL_WATER_READ_TIMER 100 // 100 ms
 
-
-
 #define SCREEN_ON_SHORT 15000  //30000
 #define SCREEN_ON_LONG  30000 //60000
 
 #define SLEEP_TIME_ERROR      60000000  //300000000
 #define SLEEP_TIME_NO_ERROR   300000000  //3600000000
 
-unsigned long sensors_read_timeout, current_millis, previous_millis = 0;
+unsigned long current_millis, previous_millis = 0;
 bool pump_running = false;
 int button_state = 0;
 bool manual_pump = false;
@@ -88,16 +87,15 @@ void sleep();
 
 void setup(){
   Serial.begin(115200);
-  pinMode(POWER_3V3_BUSS_PIN, OUTPUT);
+  pinMode(POWER_PIN_OLED, OUTPUT);
+  pinMode(POWER_PIN_SENSORS, OUTPUT);
   pinMode(WATER_LEVEL_PIN, INPUT);
   pinMode(MOISTURE_SENSOR_1_PIN, INPUT);
   pinMode(MOISTURE_SENSOR_2_PIN, INPUT);
   pinMode(PUMP_PIN, OUTPUT);
   pinMode(ERROR_LED, OUTPUT);
   pinMode(BUTTON_PIN, INPUT_PULLUP); // Set button pin as input with internal pull-down resistor  (INPUT_PULLDOWN)
-  pinMode(MOISTURE_1_POWER_PIN, OUTPUT);
-  pinMode(MOISTURE_2_POWER_PIN, OUTPUT);
-  power_3v3_buss(1);
+  power_oled(1);
   delay(1); //give time for sensors to power up before initializing
 
   display.init();
@@ -119,7 +117,9 @@ void setup(){
   rtc_gpio_pullup_en((gpio_num_t)BUTTON_PIN); //enable pullup after CPU is put to deep sleep
   esp_sleep_enable_ext0_wakeup((gpio_num_t)BUTTON_PIN, LOW);  //enable wakeup with button press
 
+  power_sensors(1);
   sensorsRead();
+  power_sensors(0);
 
   updateScreen();
 }
@@ -141,9 +141,14 @@ void loop(){
   Power up 3V3 power buss - turn sensors ond screen on
 */
 
-void power_3v3_buss(int on_off)
+void power_oled(int on_off)
 {
-  digitalWrite(POWER_3V3_BUSS_PIN, on_off);
+  digitalWrite(POWER_PIN_OLED, on_off);
+}
+
+void power_sensors(int on_off)
+{
+  digitalWrite(POWER_PIN_SENSORS, on_off);
 }
 
 
@@ -160,13 +165,6 @@ void resolvePump()
 {
   // Check if button is pressed
   if (button_state == LOW && water_level > WATER_LEVEL_THRESHOLD) {
-
-    // Read water sensor every 100 ms (prevents pumping air and damaging pump)
-    if(current_millis > sensors_read_timeout)
-    {
-      waterSensorRead();
-      sensors_read_timeout = current_millis + MANUAL_WATER_READ_TIMER;
-    }
 
     digitalWrite(PUMP_PIN, HIGH);  // Turn on pump
     manual_pump = true;
@@ -279,7 +277,7 @@ void sleep()
 {
   error ? sleep_time = SLEEP_TIME_ERROR : sleep_time = SLEEP_TIME_NO_ERROR;   //SLEEP_TIME_ERROR, SLEEP_TIME_NO_ERROR
   display.resetDisplay();
-  power_3v3_buss(0);
+  power_oled(0);
   esp_deep_sleep(sleep_time);
 }
 
